@@ -5,3 +5,5 @@ class ComplaintCreate(BaseModel):
     email: str
     subject: str
     complaint: str
+class ComplaintStatusUpdate(BaseModel):
+    status: str
