@@ -9,4 +9,5 @@ class Complaint(Base):
     email = Column(String)
     subject = Column(String)
     complaint = Column(String)
+    category = Column(String, default="Other")
     status = Column(String, default="Pending")

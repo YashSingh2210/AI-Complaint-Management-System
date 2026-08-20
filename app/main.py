@@ -4,6 +4,7 @@ from . import models
 from sqlalchemy.orm import Session
 from .schemas import ComplaintCreate,ComplaintStatusUpdate
 from .models import Complaint
+from .ai_service import get_category
 print("Creating Database...")
 models.Base.metadata.create_all(bind=engine)
 app=FastAPI()
@@ -15,19 +16,31 @@ def home():
 def create_complaint(
     complaint: ComplaintCreate,
     db: Session = Depends(get_db) # ask from api a new database connection
+    
 ):
+    category = get_category(complaint.complaint)
     new_complaint = Complaint(
         customer_name=complaint.customer_name,
         email=complaint.email,
         subject=complaint.subject,
-        complaint=complaint.complaint
+        complaint=complaint.complaint,
+        category=category,
+        status="Pending"
     )
     db.add(new_complaint) # register new complain
     db.commit()# save the complain
     db.refresh(new_complaint)
     return {
         "message": "Complaint submitted successfully",
-        "id": new_complaint.id
+    "complaint": {
+        "id": new_complaint.id,
+        "customer_name": new_complaint.customer_name,
+        "email": new_complaint.email,
+        "subject": new_complaint.subject,
+        "complaint": new_complaint.complaint,
+        "category": new_complaint.category,
+        "status": new_complaint.status
+    }
     }
 
 # getting all complains from database.
