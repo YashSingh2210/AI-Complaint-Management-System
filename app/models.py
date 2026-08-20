@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String,Text,DateTime
 from .database import Base
+from datetime import datetime
 
 class Complaint(Base):
     __tablename__ = "complaints"
@@ -10,4 +11,13 @@ class Complaint(Base):
     subject = Column(String)
     complaint = Column(String)
     category = Column(String, default="Other")
+    priority = Column(String)
+    ai_reply = Column(Text)
     status = Column(String, default="Pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(
+    DateTime,
+    default=datetime.utcnow,
+    onupdate=datetime.utcnow
+)
+    resolved_at = Column(DateTime, nullable=True)
