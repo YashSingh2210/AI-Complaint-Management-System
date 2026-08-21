@@ -20,6 +20,7 @@ def home():
 @app.post("/complaints")
 def create_complaint(
     complaint: ComplaintCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db) # ask from api a new database connection
     
 ):
@@ -35,6 +36,7 @@ def create_complaint(
         priority=priority,
         status="Pending",
         ai_reply=reply,
+        user_id=current_user.id
     )
     db.add(new_complaint) # register new complain
     db.commit()# save the complain
@@ -97,6 +99,7 @@ def get_complaint_by_id(
 def update_complaint_status(
     complaint_id: int,
     update: ComplaintStatusUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     complaint = db.query(Complaint).filter(
@@ -107,6 +110,14 @@ def update_complaint_status(
             status_code=404,
             detail="Complaint not found"
         )
+    if (
+    current_user.role != "admin"
+    and complaint.user_id != current_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Access Denied"
+    )
     complaint.status = update.status.title()
     if update.status.lower() == "resolved":
           complaint.resolved_at = datetime.utcnow()
@@ -126,6 +137,7 @@ def update_complaint_status(
 @app.delete("/complaints/{complaint_id}")
 def delete_complaint(
     complaint_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     complaint = db.query(Complaint).filter(
@@ -136,6 +148,14 @@ def delete_complaint(
             status_code=404,
             detail="Complaint not found"
         )
+    if (
+    current_user.role != "admin"
+    and complaint.user_id != current_user.id
+):
+        raise HTTPException(
+            status_code=403,
+            detail="Access Denied"
+    )
     db.delete(complaint)
     db.commit()
     return {
@@ -311,3 +331,23 @@ def me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "role": current_user.role
     }
+
+#My Complaints API:-
+@app.get("/my-complaints")
+def my_complaints(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    complaints = db.query(Complaint).filter(
+        Complaint.user_id == current_user.id
+    ).all()
+
+    return complaints
+
+# admin all complaints:-
+@app.get("/all-complaints")
+def all_complaints(
+    current_user: User = Depends(admin_only),
+    db: Session = Depends(get_db)
+):
+    return db.query(Complaint).all()

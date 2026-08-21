@@ -1,11 +1,13 @@
-from sqlalchemy import Column, Integer, String,Text,DateTime
+from sqlalchemy import Column, Integer, String,Text,DateTime, ForeignKey
 from .database import Base
 from datetime import datetime
+from sqlalchemy.orm import relationship
 
 class Complaint(Base):
     __tablename__ = "complaints"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
     customer_name = Column(String)
     email = Column(String)
     subject = Column(String)
@@ -21,6 +23,8 @@ class Complaint(Base):
     onupdate=datetime.utcnow
 )
     resolved_at = Column(DateTime, nullable=True)
+    
+    owner = relationship("User", back_populates="complaints")
 
 class User(Base):
     __tablename__="users"
@@ -29,3 +33,4 @@ class User(Base):
     email=Column(String,unique=True,nullable=False)
     password=Column(String,nullable=False)
     role = Column(String, default="user")
+    complaints = relationship("Complaint", back_populates="owner")
