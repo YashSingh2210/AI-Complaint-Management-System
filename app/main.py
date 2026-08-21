@@ -2,11 +2,14 @@ from fastapi import FastAPI,Depends,HTTPException
 from .database import engine,get_db
 from . import models
 from sqlalchemy.orm import Session
-from .schemas import ComplaintCreate,ComplaintStatusUpdate
-from .models import Complaint
+from .schemas import ComplaintCreate,ComplaintStatusUpdate,UserCreate,UserLogin,UserResponse
+from .models import Complaint,User
 from .ai_service import get_category,get_priority,generate_reply, generate_status_reply
 from datetime import datetime
 from sqlalchemy import func
+from .hashing import hash, verify
+from .auth import create_access_token,get_current_user,admin_only
+from fastapi.security import OAuth2PasswordRequestForm
 print("Creating Database...")
 models.Base.metadata.create_all(bind=engine)
 app=FastAPI()
@@ -250,10 +253,61 @@ def analytics_priority(
     "Medium": 0,
     "Low": 0
 }
-
     for priority, count in result:
-        summary[priority] = count
-
+            summary[priority] = count
     return summary
 
+#signup API:-
+@app.post("/signup")
+def signup(user: UserCreate, db: Session = Depends(get_db)):
 
+    new_user = User(
+        username=user.username,
+        email=user.email,
+        password=hash(user.password),
+        role=user.role
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "message": "User created successfully"
+    }
+
+#login API:-
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(
+        User.username == form_data.username
+    ).first()
+    if not db_user:
+        return {"message": "Invalid Username"}
+    if not verify(form_data.password, db_user.password):
+        return {"message": "Invalid Password"}
+    token = create_access_token(
+        {"sub": db_user.username}
+    )
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
+
+
+@app.get("/admin")
+def admin_dashboard(
+    current_user: User = Depends(admin_only)
+):
+    return {
+        "message":"Welcome Admin"
+    }
+
+@app.get("/me", response_model=UserResponse)
+def me(current_user: User = Depends(get_current_user)):
+    return {
+         "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role": current_user.role
+    }
