@@ -2,7 +2,7 @@ from fastapi import FastAPI,Depends,HTTPException
 from .database import engine,get_db
 from . import models
 from sqlalchemy.orm import Session
-from .schemas import ComplaintCreate,ComplaintStatusUpdate,UserCreate,UserLogin,UserResponse
+from .schemas import ComplaintCreate,ComplaintStatusUpdate,UserCreate,UserLogin,UserResponse,ComplaintResponse
 from .models import Complaint,User
 from .ai_service import get_category,get_priority,generate_reply, generate_status_reply
 from datetime import datetime
@@ -12,12 +12,14 @@ from .auth import create_access_token,get_current_user,admin_only
 from fastapi.security import OAuth2PasswordRequestForm
 print("Creating Database...")
 models.Base.metadata.create_all(bind=engine)
-app=FastAPI()
+app=FastAPI(title="ResolveAI Complaint Management System",
+    description="AI Powered Complaint Management Backend using FastAPI",
+    version="1.0.0")
 @app.get("/")
 def home():
     return{"message":"ResolveAI backend is running"}
 
-@app.post("/complaints")
+@app.post("/complaints",tags=["Complaint"])
 def create_complaint(
     complaint: ComplaintCreate,
     current_user: User = Depends(get_current_user),
@@ -63,7 +65,7 @@ def create_complaint(
 #     return complaints
 
 # only limited complaints:-
-@app.get("/complaints")
+@app.get("/complaints",response_model=list[ComplaintResponse],tags=["Complaint"])
 def get_complaints(
     skip: int = 0,
     limit: int = 10,
@@ -79,7 +81,7 @@ def get_complaints(
     return complaints
 
 # get complaints by_id.
-@app.get("/complaints/{complaint_id}")
+@app.get("/complaints/{complaint_id}",response_model=ComplaintResponse,tags=["Complaint"])
 def get_complaint_by_id(
     complaint_id: int,
     db: Session = Depends(get_db)
@@ -95,7 +97,7 @@ def get_complaint_by_id(
     return complaint
 
  # complaint status update
-@app.put("/complaints/{complaint_id}")
+@app.put("/complaints/{complaint_id}",tags=["Complaint"])
 def update_complaint_status(
     complaint_id: int,
     update: ComplaintStatusUpdate,
@@ -134,7 +136,7 @@ def update_complaint_status(
     }
 
 # deletion of complaint
-@app.delete("/complaints/{complaint_id}")
+@app.delete("/complaints/{complaint_id}",tags=["Complaint"])
 def delete_complaint(
     complaint_id: int,
     current_user: User = Depends(get_current_user),
@@ -163,7 +165,7 @@ def delete_complaint(
     }
 
 # dashboard:-
-@app.get("/dashboard")
+@app.get("/dashboard",tags=["Analytics"])
 def dashboard(db: Session = Depends(get_db)):
 
     total = db.query(Complaint).count()
@@ -188,7 +190,7 @@ def dashboard(db: Session = Depends(get_db)):
     }
 
 # search by customer name:-
-@app.get("/search")
+@app.get("/search",response_model=list[ComplaintResponse],tags=["Search & Filter"])
 def search_complaints(
     name: str,
     db: Session = Depends(get_db)
@@ -200,7 +202,7 @@ def search_complaints(
     return complaints
 
 # filter by status:-
-@app.get("/complaints/status/{status}")
+@app.get("/complaints/status/{status}",response_model=list[ComplaintResponse],tags=["Search & Filter"])
 def filter_status(
     status: str,
     db: Session = Depends(get_db)
@@ -212,7 +214,7 @@ def filter_status(
     return complaints
 
 # filter by priority:-
-@app.get("/complaints/priority/{priority}")
+@app.get("/complaints/priority/{priority}",response_model=list[ComplaintResponse],tags=["Search & Filter"])
 def filter_priority(
     priority: str,
     db: Session = Depends(get_db)
@@ -224,7 +226,7 @@ def filter_priority(
     return complaints
 
 # filter by category:-
-@app.get("/complaints/category/{category}")
+@app.get("/complaints/category/{category}",response_model=list[ComplaintResponse],tags=["Search & Filter"])
 def filter_category(
     category: str,
     db: Session = Depends(get_db)
@@ -236,7 +238,7 @@ def filter_category(
     return complaints
 
 # category analytics:-
-@app.get("/analytics/category")
+@app.get("/analytics/category",tags=["Analytics"])
 def analytics_category(db: Session = Depends(get_db)):
     result = (
         db.query(
@@ -255,7 +257,7 @@ def analytics_category(db: Session = Depends(get_db)):
     ]
 
 # priority analytics:-
-@app.get("/analytics/priority")
+@app.get("/analytics/priority",tags=["Analytics"])
 def analytics_priority(
     db: Session = Depends(get_db)
 ):
@@ -278,8 +280,29 @@ def analytics_priority(
     return summary
 
 #signup API:-
-@app.post("/signup")
+@app.post("/signup",tags=["Authentication"])
 def signup(user: UserCreate, db: Session = Depends(get_db)):
+     # Username check
+    existing_user = db.query(User).filter(
+        User.username == user.username
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already exists"
+        )
+
+    # Email check
+    existing_email = db.query(User).filter(
+        User.email == user.email
+    ).first()
+
+    if existing_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already exists"
+        )
 
     new_user = User(
         username=user.username,
@@ -296,7 +319,7 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     }
 
 #login API:-
-@app.post("/login")
+@app.post("/login",tags=["Authentication"])
 def login(form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)):
     db_user = db.query(User).filter(
@@ -315,7 +338,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(),
     }
 
 
-@app.get("/admin")
+@app.get("/admin",tags=["Admin"])
 def admin_dashboard(
     current_user: User = Depends(admin_only)
 ):
@@ -323,7 +346,7 @@ def admin_dashboard(
         "message":"Welcome Admin"
     }
 
-@app.get("/me", response_model=UserResponse)
+@app.get("/me", response_model=UserResponse,tags=["Users"])
 def me(current_user: User = Depends(get_current_user)):
     return {
          "id": current_user.id,
@@ -333,7 +356,7 @@ def me(current_user: User = Depends(get_current_user)):
     }
 
 #My Complaints API:-
-@app.get("/my-complaints")
+@app.get("/my-complaints",response_model=list[ComplaintResponse],tags=["Users"])
 def my_complaints(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -345,7 +368,7 @@ def my_complaints(
     return complaints
 
 # admin all complaints:-
-@app.get("/all-complaints")
+@app.get("/all-complaints",tags=["Admin"])
 def all_complaints(
     current_user: User = Depends(admin_only),
     db: Session = Depends(get_db)

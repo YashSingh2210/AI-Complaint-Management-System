@@ -34,3 +34,8 @@ class User(Base):
     password=Column(String,nullable=False)
     role = Column(String, default="user")
     complaints = relationship("Complaint", back_populates="owner")
+
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, ConfigDict
+
